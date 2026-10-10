@@ -1,8 +1,10 @@
 import argparse
 import sys
+from pathlib import Path
 
-from . import adb, repo, updater, watchlist
+from . import adb, digest, repo, updater, watchlist
 from .direct import DirectApp
+from .state import State
 
 
 def cmd_add(args):
@@ -40,9 +42,18 @@ def cmd_list(_args):
 def _plan():
     serial = adb.connected_device()
     sdk, abis = adb.device_info(serial)
-    cands = updater.find_updates(repo.load_index(), watchlist.load(),
-                                 adb.installed_versions(serial), sdk, abis)
-    return serial, cands
+    cfg = watchlist.load()
+    installed = adb.installed_versions(serial)
+    state = State.load()  # remember the phone's versions so `digest` works while it's unplugged
+    for p in cfg.all_packages():
+        if p in installed and p not in state.installed and p in state.notified:
+            # first time we see this app on the phone: the digest baseline was a guess, so
+            # anything newer than what's really installed counts as not yet reported
+            state.notified[p] = min(state.notified[p], installed[p])
+    state.installed = {p: installed[p] for p in cfg.all_packages() if p in installed}
+    state.save()
+    cands = updater.find_updates(repo.load_index(), cfg, installed, sdk, abis)
+    return serial, cands, state
 
 
 def _show(cands):
@@ -62,7 +73,7 @@ def cmd_check(_args):
 
 
 def cmd_update(args):
-    serial, cands = _plan()
+    serial, cands, state = _plan()
     if not cands:
         print("everything is up to date")
         return
@@ -71,10 +82,45 @@ def cmd_update(args):
     if args.dry_run:
         return
     failed = 0
-    for pkg, err in updater.apply(serial, cands).items():
+    results = updater.apply(serial, cands)
+    for c in cands:
+        if results[c.release.package] is None:
+            state.installed[c.release.package] = c.release.version_code
+    state.save()
+    for pkg, err in results.items():
         print(f"  {'ok  ' if err is None else 'FAIL'} {pkg}" + (f": {err}" if err else ""))
         failed += err is not None
     sys.exit(1 if failed else 0)
+
+
+def cmd_digest(args):
+    """Notify about waiting updates. Meant to run from a timer; works with the phone unplugged."""
+    state = State.load()
+    items = digest.pending(repo.load_index(), watchlist.load(), state)
+    if not items or not (args.always or any(i.is_new for i in items)):
+        state.save()
+        if args.verbose:
+            print("nothing new to report")
+        return
+    title, body = digest.render(items)
+    if args.print or not digest.notify(title, body):
+        print(f"{title}\n{body}")
+    digest.mark_notified(items, state)
+    state.save()
+
+
+def cmd_install_timer(args):
+    units = Path.home() / ".config/systemd/user"
+    units.mkdir(parents=True, exist_ok=True)
+    exe = Path(sys.argv[0]).resolve()
+    (units / "android-updater-digest.service").write_text(
+        f"[Unit]\nDescription=Android app update digest\nAfter=network-online.target\n\n"
+        f"[Service]\nType=oneshot\nExecStart={exe} digest\n")
+    (units / "android-updater-digest.timer").write_text(
+        f"[Unit]\nDescription=Check for Android app updates\n\n"
+        f"[Timer]\nOnCalendar={args.schedule}\nPersistent=true\nRandomizedDelaySec=15m\n\n"
+        f"[Install]\nWantedBy=timers.target\n")
+    print(f"wrote units to {units}\nenable with: systemctl --user enable --now android-updater-digest.timer")
 
 
 def main():
@@ -95,6 +141,15 @@ def main():
     u = sub.add_parser("update", help="update watched apps installed on the connected phone")
     u.add_argument("--dry-run", action="store_true", help="only show what would be updated")
     u.set_defaults(fn=cmd_update)
+
+    g = sub.add_parser("digest", help="send a desktop notification if updates are waiting")
+    g.add_argument("--always", action="store_true", help="notify even if everything was already reported")
+    g.add_argument("--print", action="store_true", help="print instead of sending a notification")
+    g.add_argument("-v", "--verbose", action="store_true")
+    g.set_defaults(fn=cmd_digest)
+    t = sub.add_parser("install-timer", help="write systemd user units that run `digest` on a schedule")
+    t.add_argument("--schedule", default="daily", help="systemd OnCalendar value (default: daily)")
+    t.set_defaults(fn=cmd_install_timer)
 
     args = ap.parse_args()
     try:
