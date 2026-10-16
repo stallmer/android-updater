@@ -27,7 +27,7 @@ Entry point is `cli.py:main` (argparse subcommands, one `cmd_*` function each). 
 3. **`direct.py`** resolves a direct source into the same `repo.Release` type (version-code text URL + `{abi}` APK URL template, no hash check).
 4. **`updater.py`** merges both into `latest_releases()`, `find_updates()` keeps only installed apps with a strictly higher `versionCode` (upgrade-only), and `apply()` downloads and installs each, collecting per-package errors so one failure doesn't abort the rest.
 5. **`adb.py`** wraps the `adb` binary (single-device enforcement, SDK/ABI info, installed versions, install).
-6. **`digest.py` + `state.py`**: `update` (including `--dry-run`) records phone-installed versions in `state.json`; `digest` compares latest releases against that state, so it works with the phone unplugged, and only notifies when something is newer than what was last reported. `install-timer` (in `cli.py`) writes systemd user units pointing at the absolute path of the installed script.
+6. **`digest.py` + `state.py`**: `update` (including `--dry-run`) records phone-installed versions in `state.json`; `digest` compares latest releases against that state, so it works with the phone unplugged, and only notifies when something is newer than what was last reported. `install-timer` (in `cli.py`) writes systemd user units on Linux or a launchd agent on macOS (branching on `sys.platform`), pointing at the absolute path of the installed script. `digest.notify` likewise uses `notify-send` or `osascript`.
 
 `paths.py` centralizes XDG config/cache/state directories (honoring `XDG_*_HOME`).
 

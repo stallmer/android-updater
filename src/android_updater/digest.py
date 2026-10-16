@@ -1,6 +1,7 @@
 """Build and send a digest of watched apps that have updates waiting."""
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 
 from . import updater
@@ -55,6 +56,11 @@ def mark_notified(items: list[Item], state: State) -> None:
 
 
 def notify(title: str, body: str) -> bool:
-    if not shutil.which("notify-send"):
-        return False
-    return subprocess.run(["notify-send", "-a", "android-updater", "-i", "phone", title, body]).returncode == 0
+    if sys.platform == "darwin":
+        script = "on run argv\ndisplay notification (item 2 of argv) with title \"android-updater\" subtitle (item 1 of argv)\nend run"
+        cmd = ["osascript", "-e", script, title, body] if shutil.which("osascript") else None
+    elif shutil.which("notify-send"):
+        cmd = ["notify-send", "-a", "android-updater", "-i", "phone", title, body]
+    else:
+        cmd = None
+    return bool(cmd) and subprocess.run(cmd).returncode == 0

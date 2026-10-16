@@ -11,10 +11,10 @@ You keep a **watchlist** of apps. Plug in your phone and run `update`: the tool 
 
 ## Requirements
 
-- Linux, Python 3.11+
-- `adb` (Arch: `sudo pacman -S android-tools`)
+- Linux or macOS, Python 3.11+
+- `adb` (Arch: `sudo pacman -S android-tools`; macOS: `brew install android-platform-tools`)
 - USB debugging enabled on the phone (Settings → Developer options)
-- `notify-send` for desktop notifications (optional; the digest prints to stdout without it)
+- Desktop notifications (optional; the digest prints to stdout without them): `notify-send` on Linux, built in (`osascript`) on macOS
 
 ## Install
 
@@ -66,11 +66,14 @@ android-updater digest             # notify if something new is waiting
 android-updater digest --print     # print instead of notifying
 android-updater digest --always    # notify even if already reported
 
-android-updater install-timer      # write systemd user units (default: daily)
+android-updater install-timer      # Linux: write systemd user units (default: daily)
 systemctl --user enable --now android-updater-digest.timer
+
+android-updater install-timer      # macOS: write a launchd agent (default: daily at 09:00)
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.android-updater.digest.plist
 ```
 
-Use `install-timer --schedule "*-*-* 09:00"` for a different time, then `systemctl --user daemon-reload`. The units point at the absolute path of the installed script, so rerun `install-timer` if you move the project or recreate the virtualenv.
+Use `install-timer --schedule "*-*-* 09:00"` for a different time (on Linux, then `systemctl --user daemon-reload`; on macOS only `daily` or a daily `HH:MM` is supported, and you must `launchctl bootout` and `bootstrap` again). The units point at the absolute path of the installed script, so rerun `install-timer` if you move the project or recreate the virtualenv.
 
 How the digest works:
 
@@ -85,9 +88,10 @@ How the digest works:
 | `~/.config/android-updater/config.toml` | The watchlist (hand-editable) |
 | `~/.cache/android-updater/` | Cached F-Droid index and downloaded APKs |
 | `~/.local/state/android-updater/state.json` | Last-known phone versions and what digests already reported |
-| `~/.config/systemd/user/android-updater-digest.{service,timer}` | Written by `install-timer` |
+| `~/.config/systemd/user/android-updater-digest.{service,timer}` | Written by `install-timer` on Linux |
+| `~/Library/LaunchAgents/com.android-updater.digest.plist` | Written by `install-timer` on macOS |
 
-The standard `XDG_CONFIG_HOME`, `XDG_CACHE_HOME` and `XDG_STATE_HOME` variables are respected.
+The standard `XDG_CONFIG_HOME`, `XDG_CACHE_HOME` and `XDG_STATE_HOME` variables are respected (also on macOS, which uses the same `~/.config` etc. defaults).
 
 Config format:
 

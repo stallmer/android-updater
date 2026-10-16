@@ -1,4 +1,6 @@
 import argparse
+import plistlib
+import re
 import sys
 from pathlib import Path
 
@@ -109,7 +111,7 @@ def cmd_digest(args):
     state.save()
 
 
-def cmd_install_timer(args):
+def _systemd_timer(schedule: str) -> None:
     units = Path.home() / ".config/systemd/user"
     units.mkdir(parents=True, exist_ok=True)
     exe = Path(sys.argv[0]).resolve()
@@ -118,9 +120,34 @@ def cmd_install_timer(args):
         f"[Service]\nType=oneshot\nExecStart={exe} digest\n")
     (units / "android-updater-digest.timer").write_text(
         f"[Unit]\nDescription=Check for Android app updates\n\n"
-        f"[Timer]\nOnCalendar={args.schedule}\nPersistent=true\nRandomizedDelaySec=15m\n\n"
+        f"[Timer]\nOnCalendar={schedule}\nPersistent=true\nRandomizedDelaySec=15m\n\n"
         f"[Install]\nWantedBy=timers.target\n")
     print(f"wrote units to {units}\nenable with: systemctl --user enable --now android-updater-digest.timer")
+
+
+def _launchd_agent(schedule: str) -> None:
+    m = re.fullmatch(r"(?:\*-\*-\*\s+)?(\d{1,2}):(\d{2})(?::\d{2})?", schedule.strip())
+    if schedule == "daily":
+        hour, minute = 9, 0
+    elif m and int(m[1]) < 24 and int(m[2]) < 60:
+        hour, minute = int(m[1]), int(m[2])
+    else:
+        raise RuntimeError("on macOS --schedule must be 'daily' or a daily time like '09:00' or '*-*-* 09:00'")
+    label = "com.android-updater.digest"
+    agents = Path.home() / "Library/LaunchAgents"
+    agents.mkdir(parents=True, exist_ok=True)
+    plist = agents / f"{label}.plist"
+    plist.write_bytes(plistlib.dumps({
+        "Label": label,
+        "ProgramArguments": [str(Path(sys.argv[0]).resolve()), "digest"],
+        "StartCalendarInterval": {"Hour": hour, "Minute": minute},
+        "EnvironmentVariables": {"PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"},
+    }))
+    print(f"wrote {plist}\nenable with: launchctl bootstrap gui/$(id -u) {plist}")
+
+
+def cmd_install_timer(args):
+    (_launchd_agent if sys.platform == "darwin" else _systemd_timer)(args.schedule)
 
 
 def main():
@@ -147,8 +174,8 @@ def main():
     g.add_argument("--print", action="store_true", help="print instead of sending a notification")
     g.add_argument("-v", "--verbose", action="store_true")
     g.set_defaults(fn=cmd_digest)
-    t = sub.add_parser("install-timer", help="write systemd user units that run `digest` on a schedule")
-    t.add_argument("--schedule", default="daily", help="systemd OnCalendar value (default: daily)")
+    t = sub.add_parser("install-timer", help="schedule `digest` (systemd user timer on Linux, launchd agent on macOS)")
+    t.add_argument("--schedule", default="daily", help="systemd OnCalendar value, or on macOS a daily time like 09:00 (default: daily)")
     t.set_defaults(fn=cmd_install_timer)
 
     args = ap.parse_args()
