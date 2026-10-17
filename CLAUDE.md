@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```
 python -m venv .venv && .venv/bin/pip install -e .   # install (hatchling build, src/ layout)
-.venv/bin/android-updater <add|add-direct|remove|list|check|update|digest|install-timer>
+.venv/bin/android-updater <add|add-direct|add-github|remove|list|check|update|digest|install-timer>
 .venv/bin/android-updater check                       # no phone needed
 .venv/bin/android-updater update --dry-run            # needs a phone
 .venv/bin/android-updater digest --print              # print instead of notify-send
@@ -22,13 +22,13 @@ There is no test suite, linter, or formatter configured.
 
 Entry point is `cli.py:main` (argparse subcommands, one `cmd_*` function each). The flow shared by `check`, `update`, and `digest`:
 
-1. **`watchlist.py`** loads `Config` from `~/.config/android-updater/config.toml`: `packages` (F-Droid IDs) plus `[[app]]` direct sources.
+1. **`watchlist.py`** loads `Config` from `~/.config/android-updater/config.toml`: `packages` (F-Droid IDs) plus `[[app]]` direct sources and `[[github]]` release sources.
 2. **`repo.py`** fetches/caches the F-Droid index (hash-checked against `entry.json`) and `best_release()` picks the newest stable release compatible with the device's SDK and ABIs; `download()` verifies SHA-256.
-3. **`direct.py`** resolves a direct source into the same `repo.Release` type (version-code text URL + `{abi}` APK URL template, no hash check).
+3. **`direct.py`** resolves a direct source into the same `repo.Release` type (version-code text URL + `{abi}` APK URL template, no hash check). `latest_github()` does the same for GitHub releases (latest-release API, asset regex, `versionCode` parsed from the tag).
 4. **`updater.py`** merges both into `latest_releases()`, `find_updates()` keeps apps that are not installed or have a strictly higher `versionCode` than installed (never downgrades), and `apply()` downloads and installs each, collecting per-package errors so one failure doesn't abort the rest.
 5. **`adb.py`** wraps the `adb` binary (single-device enforcement, SDK/ABI info, installed versions, install).
 6. **`digest.py` + `state.py`**: `update` (including `--dry-run`) records phone-installed versions in `state.json`; `digest` compares latest releases against that state, so it works with the phone unplugged, and only notifies when something is newer than what was last reported. `install-timer` (in `cli.py`) writes systemd user units on Linux or a launchd agent on macOS (branching on `sys.platform`), pointing at the absolute path of the installed script. `digest.notify` likewise uses `notify-send` or `osascript`.
 
 `paths.py` centralizes XDG config/cache/state directories (honoring `XDG_*_HOME`).
 
-`repo.Release` is the common currency between F-Droid and direct sources; new source types should produce it.
+`repo.Release` is the common currency between F-Droid, direct, and GitHub sources; new source types should produce it.

@@ -8,6 +8,7 @@ You keep a **watchlist** of apps. Plug in your phone and run `update`: the tool 
 
 - **F-Droid** (default): versions and APKs come from the F-Droid repo index, and each APK's SHA-256 is verified before install.
 - **Direct sources**: for apps published outside F-Droid (for example Grayjay). You give a URL that returns the latest `versionCode` as plain text and an APK URL template.
+- **GitHub releases**: for apps that publish APKs on GitHub (for example FairEmail). You give the repo, a regex that picks one APK from the latest release, and optionally a regex that extracts the `versionCode` from the release tag.
 
 ## Requirements
 
@@ -36,11 +37,14 @@ android-updater add org.fdroid.fdroid org.mozilla.fennec_fdroid   # F-Droid pack
 android-updater add-direct com.futo.platformplayer \
   --version-url https://releases.grayjay.app/version.txt \
   --apk-url 'https://releases.grayjay.app/app-{abi}-release.apk'
+android-updater add-github eu.faircode.email --repo M66B/FairEmail --asset 'github-release\.apk$'
 android-updater list
 android-updater remove org.fdroid.fdroid
 ```
 
 Package names are the IDs in the app's F-Droid page URL (`f-droid.org/packages/<package>`). In `--apk-url`, `{abi}` is replaced with the phone's CPU architecture (`arm64-v8a`, etc.), or `universal` if none match.
+
+For `add-github`, the package name must be the app's real `applicationId` (for example from `app/build.gradle`, or `adb shell pm list packages`), because it is matched against the apps installed on the phone. `--asset` must match exactly one APK in the latest release. GitHub releases don't expose the `versionCode`, so it is read from the release tag with `--code-pattern` (group 1; default: the trailing digits, so tag `1.2338` gives 2338).
 
 ### Check what's latest (no phone needed)
 
@@ -108,9 +112,9 @@ apk_url = "https://releases.grayjay.app/app-{abi}-release.apk"
 
 ## Limitations
 
-- **Signing keys must match.** Android refuses to update an app signed with a different key than the installed one. An app you installed from Play or from the developer's site generally cannot be updated with F-Droid's rebuild; the install fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Use the app's own release channel (a direct source) in that case.
+- **Signing keys must match.** Android refuses to update an app signed with a different key than the installed one. An app you installed from Play or from the developer's site generally cannot be updated with F-Droid's rebuild; the install fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Use the app's own release channel (a direct or GitHub source) in that case.
 - **The F-Droid index is not signature-verified yet.** It is fetched over HTTPS and checked against the hash in `entry.json`, but `entry.jar` is not verified against F-Droid's key.
-- **Direct sources have no hash check.** Protection comes from HTTPS and Android's signature check. The version URL must return the APK's real `versionCode`.
+- **Direct and GitHub sources have no hash check.** Protection comes from HTTPS and Android's signature check. For direct sources the version URL must return the APK's real `versionCode`; for GitHub sources the tag must encode it. The GitHub API is called unauthenticated (60 requests per hour).
 - **Stable releases only.** F-Droid beta/release-channel versions are skipped.
 - **Work profiles and Secure Folder.** On some phones (notably Samsung) `adb` prints permission errors for secondary users. Only apps in the main profile are seen and updated.
 - **One device at a time.** If several are connected, the tool stops and lists them.

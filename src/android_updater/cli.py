@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from . import adb, digest, repo, updater, watchlist
-from .direct import DirectApp
+from .direct import DirectApp, GithubApp
 from .state import State
 
 
@@ -29,10 +29,19 @@ def cmd_add_direct(args):
     print(f"added {args.package} (direct)")
 
 
+def cmd_add_github(args):
+    cfg = watchlist.load()
+    cfg.github = [a for a in cfg.github if a.package != args.package]
+    cfg.github.append(GithubApp(args.package, args.repo, args.asset, args.code_pattern))
+    watchlist.save(cfg)
+    print(f"added {args.package} (github)")
+
+
 def cmd_remove(args):
     cfg = watchlist.load()
     cfg.packages = [p for p in cfg.packages if p not in args.packages]
     cfg.direct = [a for a in cfg.direct if a.package not in args.packages]
+    cfg.github = [a for a in cfg.github if a.package not in args.packages]
     watchlist.save(cfg)
 
 
@@ -164,6 +173,12 @@ def main():
     d.add_argument("--version-url", required=True, help="URL returning the latest versionCode as text")
     d.add_argument("--apk-url", required=True, help="APK URL; {abi} is replaced by the phone's ABI")
     d.set_defaults(fn=cmd_add_direct)
+    gh = sub.add_parser("add-github", help="add an app whose APKs are published as GitHub releases")
+    gh.add_argument("package")
+    gh.add_argument("--repo", required=True, help="owner/name")
+    gh.add_argument("--asset", required=True, help="regex matching exactly one APK asset name of the latest release")
+    gh.add_argument("--code-pattern", default=r"(\d+)$", help=r"regex on the release tag; group 1 is the versionCode (default: trailing digits)")
+    gh.set_defaults(fn=cmd_add_github)
     sub.add_parser("list", help="show the watchlist").set_defaults(fn=cmd_list)
     sub.add_parser("check", help="show latest F-Droid versions of watched apps").set_defaults(fn=cmd_check)
     u = sub.add_parser("update", help="install missing and update outdated watched apps on the connected phone")

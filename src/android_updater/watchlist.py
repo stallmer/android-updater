@@ -3,7 +3,7 @@ import json
 import tomllib
 from dataclasses import dataclass, field
 
-from .direct import DirectApp
+from .direct import DirectApp, GithubApp
 from .paths import CONFIG_DIR, WATCHLIST_FILE
 
 
@@ -11,9 +11,10 @@ from .paths import CONFIG_DIR, WATCHLIST_FILE
 class Config:
     packages: list[str] = field(default_factory=list)  # F-Droid
     direct: list[DirectApp] = field(default_factory=list)
+    github: list[GithubApp] = field(default_factory=list)
 
     def all_packages(self) -> list[str]:
-        return self.packages + [a.package for a in self.direct]
+        return self.packages + [a.package for a in self.direct] + [a.package for a in self.github]
 
 
 def load() -> Config:
@@ -22,7 +23,9 @@ def load() -> Config:
     with WATCHLIST_FILE.open("rb") as f:
         raw = tomllib.load(f)
     return Config(list(raw.get("packages", [])),
-                  [DirectApp(a["package"], a["version_url"], a["apk_url"]) for a in raw.get("app", [])])
+                  [DirectApp(a["package"], a["version_url"], a["apk_url"]) for a in raw.get("app", [])],
+                  [GithubApp(a["package"], a["repo"], a["asset"], a.get("code_pattern", r"(\d+)$"))
+                   for a in raw.get("github", [])])
 
 
 def save(cfg: Config) -> None:
@@ -32,4 +35,7 @@ def save(cfg: Config) -> None:
     for a in cfg.direct:
         out += (f"\n[[app]]\npackage = {json.dumps(a.package)}\n"
                 f"version_url = {json.dumps(a.version_url)}\napk_url = {json.dumps(a.apk_url)}\n")
+    for a in cfg.github:
+        out += (f"\n[[github]]\npackage = {json.dumps(a.package)}\nrepo = {json.dumps(a.repo)}\n"
+                f"asset = {json.dumps(a.asset)}\ncode_pattern = {json.dumps(a.code_pattern)}\n")
     WATCHLIST_FILE.write_text(out)

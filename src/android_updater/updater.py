@@ -13,6 +13,7 @@ class Candidate:
 def latest_releases(index: dict, cfg: Config, sdk: int, abis: list[str]) -> list[repo.Release]:
     rels = [repo.best_release(index, p, sdk, abis) for p in cfg.packages]
     rels += [direct.latest(a, abis) for a in cfg.direct]
+    rels += [direct.latest_github(a) for a in cfg.github]
     return [r for r in rels if r]
 
 
