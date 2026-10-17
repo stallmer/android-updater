@@ -61,7 +61,8 @@ def _plan():
 def _show(cands):
     for c in cands:
         r = c.release
-        print(f"  {r.package}: {c.installed_code} -> {r.version_name} ({r.version_code})")
+        old = "not installed" if c.installed_code is None else c.installed_code
+        print(f"  {r.package}: {old} -> {r.version_name} ({r.version_code})")
 
 
 def cmd_check(_args):
@@ -79,7 +80,7 @@ def cmd_update(args):
     if not cands:
         print("everything is up to date")
         return
-    print(f"{len(cands)} update(s) available:")
+    print(f"{len(cands)} install(s)/update(s) available:")
     _show(cands)
     if args.dry_run:
         return
@@ -165,7 +166,7 @@ def main():
     d.set_defaults(fn=cmd_add_direct)
     sub.add_parser("list", help="show the watchlist").set_defaults(fn=cmd_list)
     sub.add_parser("check", help="show latest F-Droid versions of watched apps").set_defaults(fn=cmd_check)
-    u = sub.add_parser("update", help="update watched apps installed on the connected phone")
+    u = sub.add_parser("update", help="install missing and update outdated watched apps on the connected phone")
     u.add_argument("--dry-run", action="store_true", help="only show what would be updated")
     u.set_defaults(fn=cmd_update)
 

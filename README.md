@@ -2,7 +2,7 @@
 
 A command-line tool that updates third-party Android apps on a USB-connected phone using `adb`. No root and no on-device app store are needed.
 
-You keep a **watchlist** of apps. Plug in your phone and run `update`: the tool checks which watched apps are installed on the phone, downloads newer releases, and installs only those. A **digest** command, run from a systemd timer, sends a desktop notification when a watched app has a new version, so you know when it is worth plugging in.
+You keep a **watchlist** of apps. Plug in your phone and run `update`: the tool installs watched apps that are missing from the phone, and downloads and installs newer releases of the ones already there. A **digest** command, run from a systemd timer, sends a desktop notification when a watched app has a new version, so you know when it is worth plugging in.
 
 ## Where apps come from
 
@@ -57,7 +57,7 @@ android-updater update --dry-run   # show what would be updated
 android-updater update             # download, verify, and install
 ```
 
-Only apps that are on the watchlist, installed on the phone, and older than the latest release are touched. Apps are only ever upgraded, never downgraded or uninstalled. One failed install does not stop the others, and the exit code is non-zero if any failed.
+Apps on the watchlist that are missing from the phone are installed, and installed ones older than the latest release are upgraded. Apps are never downgraded or uninstalled. One failed install does not stop the others, and the exit code is non-zero if any failed.
 
 ### Get notified about updates
 

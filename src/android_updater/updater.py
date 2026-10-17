@@ -7,7 +7,7 @@ from .watchlist import Config
 @dataclass
 class Candidate:
     release: repo.Release
-    installed_code: int
+    installed_code: int | None  # None: not installed yet
 
 
 def latest_releases(index: dict, cfg: Config, sdk: int, abis: list[str]) -> list[repo.Release]:
@@ -18,14 +18,14 @@ def latest_releases(index: dict, cfg: Config, sdk: int, abis: list[str]) -> list
 
 def find_updates(index: dict, cfg: Config, installed: dict[str, int],
                  sdk: int, abis: list[str]) -> list[Candidate]:
-    """Watched apps that are installed on the phone and have a newer release."""
-    return [Candidate(r, installed[r.package])
+    """Watched apps that are missing from the phone or have a newer release than installed."""
+    return [Candidate(r, installed.get(r.package))
             for r in latest_releases(index, cfg, sdk, abis)
-            if r.package in installed and r.version_code > installed[r.package]]
+            if r.package not in installed or r.version_code > installed[r.package]]
 
 
 def apply(serial: str, cands: list[Candidate]) -> dict[str, str | None]:
-    """Install each update; map package -> None on success or an error message."""
+    """Install each candidate; map package -> None on success or an error message."""
     results = {}
     for c in cands:
         try:

@@ -25,7 +25,7 @@ Entry point is `cli.py:main` (argparse subcommands, one `cmd_*` function each). 
 1. **`watchlist.py`** loads `Config` from `~/.config/android-updater/config.toml`: `packages` (F-Droid IDs) plus `[[app]]` direct sources.
 2. **`repo.py`** fetches/caches the F-Droid index (hash-checked against `entry.json`) and `best_release()` picks the newest stable release compatible with the device's SDK and ABIs; `download()` verifies SHA-256.
 3. **`direct.py`** resolves a direct source into the same `repo.Release` type (version-code text URL + `{abi}` APK URL template, no hash check).
-4. **`updater.py`** merges both into `latest_releases()`, `find_updates()` keeps only installed apps with a strictly higher `versionCode` (upgrade-only), and `apply()` downloads and installs each, collecting per-package errors so one failure doesn't abort the rest.
+4. **`updater.py`** merges both into `latest_releases()`, `find_updates()` keeps apps that are not installed or have a strictly higher `versionCode` than installed (never downgrades), and `apply()` downloads and installs each, collecting per-package errors so one failure doesn't abort the rest.
 5. **`adb.py`** wraps the `adb` binary (single-device enforcement, SDK/ABI info, installed versions, install).
 6. **`digest.py` + `state.py`**: `update` (including `--dry-run`) records phone-installed versions in `state.json`; `digest` compares latest releases against that state, so it works with the phone unplugged, and only notifies when something is newer than what was last reported. `install-timer` (in `cli.py`) writes systemd user units on Linux or a launchd agent on macOS (branching on `sys.platform`), pointing at the absolute path of the installed script. `digest.notify` likewise uses `notify-send` or `osascript`.
 
