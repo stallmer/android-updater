@@ -32,7 +32,7 @@ def cmd_add_direct(args):
 def cmd_add_github(args):
     cfg = watchlist.load()
     cfg.github = [a for a in cfg.github if a.package != args.package]
-    cfg.github.append(GithubApp(args.package, args.repo, args.asset, args.code_pattern))
+    cfg.github.append(GithubApp(args.package, args.repo, args.asset, args.code_pattern, args.track_tag))
     watchlist.save(cfg)
     print(f"added {args.package} (github)")
 
@@ -62,8 +62,9 @@ def _plan():
             # anything newer than what's really installed counts as not yet reported
             state.notified[p] = min(state.notified[p], installed[p])
     state.installed = {p: installed[p] for p in cfg.all_packages() if p in installed}
+    state.tags = {p: t for p, t in state.tags.items() if p in installed}  # uninstalled: forget the tag
     state.save()
-    cands = updater.find_updates(repo.load_index(), cfg, installed, sdk, abis)
+    cands = updater.find_updates(repo.load_index(), cfg, installed, state.tags, sdk, abis)
     return serial, cands, state
 
 
@@ -81,7 +82,8 @@ def cmd_check(_args):
         repo.load_index(), cfg, sdk=99, abis=["arm64-v8a", "armeabi-v7a", "x86_64", "x86"])}
     for p in cfg.all_packages():
         rel = found.get(p)
-        print(f"{p}: latest {rel.version_name} ({rel.version_code})" if rel else f"{p}: not found")
+        print(f"{p}: latest {rel.version_name}" + (f" ({rel.version_code})" if rel.version_code else "")
+              if rel else f"{p}: not found")
 
 
 def cmd_update(args):
@@ -98,6 +100,7 @@ def cmd_update(args):
     for c in cands:
         if results[c.release.package] is None:
             state.installed[c.release.package] = c.release.version_code
+            state.tags[c.release.package] = c.release.version_name
     state.save()
     for pkg, err in results.items():
         print(f"  {'ok  ' if err is None else 'FAIL'} {pkg}" + (f": {err}" if err else ""))
@@ -178,6 +181,8 @@ def main():
     gh.add_argument("--repo", required=True, help="owner/name")
     gh.add_argument("--asset", required=True, help="regex matching exactly one APK asset name of the latest release")
     gh.add_argument("--code-pattern", default=r"(\d+)$", help=r"regex on the release tag; group 1 is the versionCode (default: trailing digits)")
+    gh.add_argument("--track-tag", action="store_true",
+                    help="update whenever the latest release tag differs from the one installed by this tool, ignoring versionCodes")
     gh.set_defaults(fn=cmd_add_github)
     sub.add_parser("list", help="show the watchlist").set_defaults(fn=cmd_list)
     sub.add_parser("check", help="show latest F-Droid versions of watched apps").set_defaults(fn=cmd_check)

@@ -28,16 +28,20 @@ class GithubApp:
     repo: str          # "owner/name"
     asset: str         # regex matched against release asset file names
     code_pattern: str  # regex run on the tag; group 1 is the versionCode
+    track_tag: bool = False  # the tag, not a versionCode, decides what is newer
 
 
 def latest_github(app: GithubApp) -> Release:
     rel = json.loads(_get(f"https://api.github.com/repos/{app.repo}/releases/latest"))
     tag = rel["tag_name"]
-    m = re.search(app.code_pattern, tag)
-    if not m:
-        raise RuntimeError(f"{app.repo}: tag {tag!r} does not match {app.code_pattern!r}")
-    code = int(m.group(1))
+    if app.track_tag:
+        code = 0
+    else:
+        m = re.search(app.code_pattern, tag)
+        if not m:
+            raise RuntimeError(f"{app.repo}: tag {tag!r} does not match {app.code_pattern!r}")
+        code = int(m.group(1))
     assets = [a for a in rel["assets"] if re.search(app.asset, a["name"])]
     if len(assets) != 1:
         raise RuntimeError(f"{app.repo} {tag}: {len(assets)} assets match {app.asset!r}, expected 1")
-    return Release(app.package, tag, code, assets[0]["browser_download_url"], f"{app.package}_{code}.apk")
+    return Release(app.package, tag, code, assets[0]["browser_download_url"], f"{app.package}_{code or re.sub(r'[^\w.-]', '_', tag)}.apk")

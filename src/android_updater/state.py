@@ -9,6 +9,8 @@ from .paths import STATE_DIR, STATE_FILE
 class State:
     installed: dict[str, int] = field(default_factory=dict)  # package -> versionCode on phone
     notified: dict[str, int] = field(default_factory=dict)   # package -> versionCode last put in a digest
+    tags: dict[str, str] = field(default_factory=dict)       # package -> release tag we installed (track_tag sources)
+    notified_tags: dict[str, str] = field(default_factory=dict)  # package -> tag last put in a digest
 
     @classmethod
     def load(cls) -> "State":
@@ -16,10 +18,12 @@ class State:
             raw = json.loads(STATE_FILE.read_text())
         except (OSError, ValueError):
             return cls()
-        return cls(raw.get("installed", {}), raw.get("notified", {}))
+        return cls(raw.get("installed", {}), raw.get("notified", {}),
+                   raw.get("tags", {}), raw.get("notified_tags", {}))
 
     def save(self) -> None:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         tmp = STATE_FILE.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"installed": self.installed, "notified": self.notified}, indent=2))
+        tmp.write_text(json.dumps({"installed": self.installed, "notified": self.notified,
+                                    "tags": self.tags, "notified_tags": self.notified_tags}, indent=2))
         tmp.replace(STATE_FILE)

@@ -27,8 +27,14 @@ def pending(index: dict, cfg: Config, state: State) -> list[Item]:
     recorded as a baseline and only later releases count.
     """
     items = []
+    tracked = updater.tag_tracked(cfg)
     for rel in updater.latest_releases(index, cfg, sdk=99, abis=ALL_ABIS):
         pkg, code = rel.package, rel.version_code
+        if pkg in tracked:
+            if state.tags.get(pkg) != rel.version_name:
+                items.append(Item(rel, state.installed.get(pkg),
+                                  rel.version_name != state.notified_tags.get(pkg)))
+            continue
         installed = state.installed.get(pkg)
         if installed is None:
             state.notified.setdefault(pkg, code)  # baseline
@@ -53,6 +59,7 @@ def render(items: list[Item]) -> tuple[str, str]:
 def mark_notified(items: list[Item], state: State) -> None:
     for i in items:
         state.notified[i.release.package] = i.release.version_code
+        state.notified_tags[i.release.package] = i.release.version_name
 
 
 def notify(title: str, body: str) -> bool:

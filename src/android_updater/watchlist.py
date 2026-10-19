@@ -24,7 +24,7 @@ def load() -> Config:
         raw = tomllib.load(f)
     return Config(list(raw.get("packages", [])),
                   [DirectApp(a["package"], a["version_url"], a["apk_url"]) for a in raw.get("app", [])],
-                  [GithubApp(a["package"], a["repo"], a["asset"], a.get("code_pattern", r"(\d+)$"))
+                  [GithubApp(a["package"], a["repo"], a["asset"], a.get("code_pattern", r"(\d+)$"), a.get("track_tag", False))
                    for a in raw.get("github", [])])
 
 
@@ -37,5 +37,6 @@ def save(cfg: Config) -> None:
                 f"version_url = {json.dumps(a.version_url)}\napk_url = {json.dumps(a.apk_url)}\n")
     for a in cfg.github:
         out += (f"\n[[github]]\npackage = {json.dumps(a.package)}\nrepo = {json.dumps(a.repo)}\n"
-                f"asset = {json.dumps(a.asset)}\ncode_pattern = {json.dumps(a.code_pattern)}\n")
+                f"asset = {json.dumps(a.asset)}\ncode_pattern = {json.dumps(a.code_pattern)}\n"
+                f"track_tag = {json.dumps(a.track_tag)}\n")
     WATCHLIST_FILE.write_text(out)
