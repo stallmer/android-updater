@@ -4,6 +4,7 @@ import os
 import plistlib
 import re
 import shlex
+import shutil
 import sys
 from pathlib import Path
 
@@ -178,10 +179,14 @@ def _macos_app(exe: Path) -> None:
         "CFBundleDisplayName": "Android Updater",
         "CFBundleIdentifier": "com.android-updater.gui",
         "CFBundleExecutable": "android-updater",
+        "CFBundleIconFile": "AppIcon",
         "CFBundlePackageType": "APPL",
         "CFBundleVersion": "1",
         "LSApplicationCategoryType": "public.app-category.utilities",
     }))
+    resources = app / "Contents/Resources"
+    resources.mkdir(exist_ok=True)
+    shutil.copyfile(Path(__file__).with_name("AppIcon.icns"), resources / "AppIcon.icns")
     launcher = macos / "android-updater"
     launcher.write_text(f'#!/bin/sh\nexec {shlex.quote(str(exe))} gui\n')
     launcher.chmod(0o755)
