@@ -1,4 +1,5 @@
 """Tkinter front end: watchlist table, check, and update."""
+import json
 import queue
 import subprocess
 import threading
@@ -7,6 +8,7 @@ from tkinter import font as tkfont, messagebox, simpledialog, ttk
 
 from . import adb, repo, updater, watchlist
 from .cli import _plan
+from .paths import GUI_FILE
 from .state import State
 
 ABIS = ["arm64-v8a", "armeabi-v7a", "x86_64", "x86"]
@@ -29,6 +31,14 @@ def _prefers_dark() -> bool:
     return "dark" in out
 
 
+def _saved_size(default: tuple[int, int] = (900, 560)) -> tuple[int, int]:
+    try:
+        w, h = json.loads(GUI_FILE.read_text())["size"]
+        return int(w), int(h)
+    except (OSError, ValueError, KeyError, TypeError):
+        return default
+
+
 def _source(cfg: watchlist.Config, package: str) -> str:
     if package in cfg.packages:
         return "F-Droid"
@@ -39,7 +49,9 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Android Updater")
-        self.geometry("900x560")
+        w, h = _saved_size()
+        self.geometry(f"{min(w, self.winfo_screenwidth())}x{min(h, self.winfo_screenheight())}")
+        self.protocol("WM_DELETE_WINDOW", self._close)
         self.events: queue.Queue = queue.Queue()
         self.busy = False
         self.checked = False  # a phone check has run, so statuses can say "up to date"
@@ -124,6 +136,16 @@ class App(tk.Tk):
         style.configure("Vertical.TScrollbar", background=c["line"], arrowcolor=c["muted"], bordercolor=c["card"])
         style.configure("Horizontal.TProgressbar", background=c["accent"], troughcolor=c["line"],
                         bordercolor=c["line"], thickness=6)
+
+    def _close(self):
+        """Remember the window size for next time (not when maximized)."""
+        if self.state() != "zoomed":
+            try:
+                GUI_FILE.parent.mkdir(parents=True, exist_ok=True)
+                GUI_FILE.write_text(json.dumps({"size": [self.winfo_width(), self.winfo_height()]}))
+            except OSError:
+                pass
+        self.destroy()
 
     def _fit_columns(self):
         """Size each column to its widest header/cell and grow the window so nothing is clipped."""

@@ -130,6 +130,7 @@ How the digest works:
 | `~/.config/android-updater/config.toml` | The watchlist (hand-editable) |
 | `~/.cache/android-updater/` | Cached F-Droid index and downloaded APKs |
 | `~/.local/state/android-updater/state.json` | Last-known phone versions and what digests already reported |
+| `~/.local/state/android-updater/gui.json` | The GUI window size, restored on the next launch |
 | `~/.config/systemd/user/android-updater-digest.{service,timer}` | Written by `install-timer` on Linux |
 | `~/Library/LaunchAgents/com.android-updater.digest.plist` | Written by `install-timer` on macOS |
 
