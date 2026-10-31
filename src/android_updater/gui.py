@@ -45,6 +45,24 @@ def _source(cfg: watchlist.Config, package: str) -> str:
     return "direct" if any(a.package == package for a in cfg.direct) else "GitHub"
 
 
+def _status(rel: repo.Release | None, code: int | None, pending: bool, checked: bool) -> tuple[str, str]:
+    """Return (status text, row tag) for one watchlist entry.
+
+    `rel` is the latest release (None if not found), `code` the last-known installed versionCode,
+    `pending` whether the last phone check wants to install/update it, and `checked` whether a
+    phone check has run at all.
+    """
+    if pending:
+        return ("update available" if code else "not installed"), "update"
+    if rel and code is not None and rel.version_code > code:
+        return "newer than last seen", "update"
+    if not rel:
+        return "not found", "bad"
+    if checked:
+        return "up to date", "ok"
+    return "", ""
+
+
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -218,16 +236,7 @@ class App(tk.Tk):
             self.tree.delete(*self.tree.get_children())
             for n, p in enumerate(cfg.all_packages()):
                 rel, code = found.get(p), state.installed.get(p)
-                if p in self.pending:
-                    status, tag = ("update available" if code else "not installed"), "update"
-                elif rel and code is not None and rel.version_code > code:
-                    status, tag = "newer than last seen", "update"
-                elif not rel:
-                    status, tag = "not found", "bad"
-                elif self.checked:
-                    status, tag = "up to date", "ok"
-                else:
-                    status, tag = "", ""
+                status, tag = _status(rel, code, p in self.pending, self.checked)
                 self.tree.insert("", "end", iid=p, tags=(tag, "odd" if n % 2 else ""), values=(
                     p, _source(cfg, p), rel.version_name if rel else "", code if code is not None else "", status))
             self._fit_columns()
