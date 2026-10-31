@@ -53,6 +53,7 @@ class App(tk.Tk):
 
         bar = ttk.Frame(root)
         bar.pack(fill="x", pady=(0, 10))
+        self.toolbar = bar
         self.buttons = []
         for text, cmd, style in [("Refresh", self.refresh, "TButton"), ("Check phone", self.check_phone, "TButton"),
                                  ("Update", self.update_phone, "Accent.TButton"),
@@ -60,13 +61,15 @@ class App(tk.Tk):
             b = ttk.Button(bar, text=text, command=cmd, style=style)
             b.pack(side="left", padx=(0, 6))
             self.buttons.append(b)
-        self.progress = ttk.Progressbar(bar, mode="indeterminate", length=120)
-        self.progress.pack(side="right")
+        slot = ttk.Frame(bar, width=130, height=10)  # always reserves room, so the bar never gets squeezed out
+        slot.pack(side="right")
+        slot.pack_propagate(False)
+        self.progress = ttk.Progressbar(slot, mode="indeterminate")  # shown only while busy
 
         table = ttk.Frame(root, style="Card.TFrame")
         table.pack(fill="both", expand=True)
         cols = ("package", "source", "latest", "phone", "status")
-        self.tree = ttk.Treeview(table, columns=cols, show="headings", selectmode="extended")
+        self.tree = ttk.Treeview(table, columns=cols, show="headings", selectmode="extended", height=6)
         for col, text, width, stretch in zip(cols, ("Package", "Source", "Latest", "On phone", "Status"),
                                              (300, 80, 120, 100, 160), (True, False, False, False, False)):
             self.tree.heading(col, text=text, anchor="w")
@@ -86,7 +89,7 @@ class App(tk.Tk):
                            padx=10, pady=8, background=c["card"], foreground=c["fg"],
                            insertbackground=c["fg"], highlightthickness=1, highlightbackground=c["line"],
                            font=tkfont.nametofont("TkFixedFont"))
-        self.log.pack(fill="x", pady=(10, 0))
+        self.log.pack(side="bottom", fill="x", pady=(10, 0), before=table)  # keep it visible when the table is tall
         self.after(100, self._poll)
         self.refresh()
 
@@ -132,6 +135,7 @@ class App(tk.Tk):
             self.tree.column(col, width=width, minwidth=width)
             total += width
         total += 20 + 32 + 8  # scrollbar, window padding, borders
+        total = max(total, self.toolbar.winfo_reqwidth() + 32 + 8)
         total = min(total, self.winfo_screenwidth() - 80)
         self.minsize(total, 360)
         self.update_idletasks()
@@ -149,6 +153,7 @@ class App(tk.Tk):
         if self.busy:
             return
         self.busy = True
+        self.progress.pack(fill="both", expand=True)
         self.progress.start(12)
         for b in self.buttons:
             b.state(["disabled"])
@@ -166,6 +171,7 @@ class App(tk.Tk):
                 done, result, err = self.events.get_nowait()
                 self.busy = False
                 self.progress.stop()
+                self.progress.pack_forget()
                 for b in self.buttons:
                     b.state(["!disabled"])
                 if err:
