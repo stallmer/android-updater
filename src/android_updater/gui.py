@@ -2,6 +2,7 @@
 import json
 import queue
 import subprocess
+import sys
 import threading
 import tkinter as tk
 from tkinter import font as tkfont, messagebox, simpledialog, ttk
@@ -10,6 +11,10 @@ from . import repo, updater, watchlist
 from .cli import _plan
 from .paths import GUI_FILE
 from .state import State
+
+MAC = sys.platform == "darwin"
+# Screen space the OS reserves (menu bar + Dock on macOS), so a saved size never opens off-screen.
+SCREEN_MARGIN = (0, 120) if MAC else (0, 0)
 
 ABIS = ["arm64-v8a", "armeabi-v7a", "x86_64", "x86"]
 
@@ -23,12 +28,15 @@ DARK = dict(bg="#242424", fg="#ebebeb", card="#303030", alt="#383838", line="#4a
 
 
 def _prefers_dark() -> bool:
+    if MAC:  # the key only exists in dark mode, so a failing command means light
+        cmd, key = ["defaults", "read", "-g", "AppleInterfaceStyle"], "Dark"
+    else:
+        cmd, key = ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"], "dark"
     try:
-        out = subprocess.run(["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
-                             capture_output=True, text=True, timeout=2).stdout
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=2).stdout
     except (OSError, subprocess.SubprocessError):
         return False
-    return "dark" in out
+    return key in out
 
 
 def _saved_size(default: tuple[int, int] = (900, 560)) -> tuple[int, int]:
@@ -68,7 +76,8 @@ class App(tk.Tk):
         super().__init__()
         self.title("Android Updater")
         w, h = _saved_size()
-        self.geometry(f"{min(w, self.winfo_screenwidth())}x{min(h, self.winfo_screenheight())}")
+        mw, mh = SCREEN_MARGIN
+        self.geometry(f"{min(w, self.winfo_screenwidth() - mw)}x{min(h, self.winfo_screenheight() - mh)}")
         self.protocol("WM_DELETE_WINDOW", self._close)
         self.events: queue.Queue = queue.Queue()
         self.busy = False
@@ -125,15 +134,22 @@ class App(tk.Tk):
 
     def _style(self):
         c = self.colors
-        self.configure(background=c["bg"])
         style = ttk.Style(self)
-        style.theme_use("clam")
         base = tkfont.nametofont("TkDefaultFont")
-        base.configure(size=max(base.cget("size"), 10) + 1)
-        tkfont.nametofont("TkTextFont").configure(size=base.cget("size"))
-        tkfont.nametofont("TkFixedFont").configure(size=base.cget("size") - 1)
+        if not MAC:  # macOS keeps its system font sizes
+            base.configure(size=max(base.cget("size"), 10) + 1)
+            tkfont.nametofont("TkTextFont").configure(size=base.cget("size"))
+            tkfont.nametofont("TkFixedFont").configure(size=base.cget("size") - 1)
         bold = self.bold = base.copy()
         bold.configure(weight="bold")
+        if MAC:
+            # Native aqua theme: it draws buttons, scrollbars and headings itself and follows light/dark mode,
+            # so only the table's row height is customised.
+            style.theme_use("aqua")
+            style.configure("Treeview", rowheight=int(base.metrics("linespace") * 1.9))
+            return
+        self.configure(background=c["bg"])
+        style.theme_use("clam")
         style.configure(".", background=c["bg"], foreground=c["fg"], bordercolor=c["line"],
                         lightcolor=c["bg"], darkcolor=c["bg"], troughcolor=c["bg"], focuscolor=c["bg"])
         style.configure("TFrame", background=c["bg"])
