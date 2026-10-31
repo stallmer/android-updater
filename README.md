@@ -1,6 +1,6 @@
 # android-updater
 
-A command-line tool that updates third-party Android apps on a USB-connected phone using `adb`. No root and no on-device app store are needed.
+A command-line tool (with an optional Tkinter GUI) that updates third-party Android apps on a USB-connected phone using `adb`. No root and no on-device app store are needed.
 
 You keep a **watchlist** of apps. Plug in your phone and run `update`: the tool installs watched apps that are missing from the phone, and downloads and installs newer releases of the ones already there. A **digest** command, run from a systemd timer, sends a desktop notification when a watched app has a new version, so you know when it is worth plugging in.
 
@@ -15,6 +15,7 @@ You keep a **watchlist** of apps. Plug in your phone and run `update`: the tool 
 - Linux or macOS, Python 3.11+
 - `adb` (Arch: `sudo pacman -S android-tools`; macOS: `brew install android-platform-tools`)
 - USB debugging enabled on the phone (Settings → Developer options)
+- `tkinter` (optional; only for the GUI: Fedora `python3-tkinter`, Debian/Ubuntu `python3-tk`; bundled with python.org and Homebrew `python-tk` on macOS)
 - Desktop notifications (optional; the digest prints to stdout without them): `notify-send` on Linux, built in (`osascript`) on macOS
 
 ## Install
@@ -72,13 +73,24 @@ Apps on the watchlist that are missing from the phone are installed, and install
 android-updater gui
 ```
 
-Opens a window with the watchlist, a "Check phone" (dry run) button, and an "Update" button. It needs tkinter (`python3-tkinter`). On an immutable distro, run it from a distrobox that has `python3-tkinter` and `android-tools`:
+Opens a window with the watchlist as a table (source, latest version, version last seen on the phone, status) and a log pane. The buttons:
+
+- **Refresh**: fetch the latest versions (no phone needed).
+- **Check phone**: dry run; marks the apps that would be installed or updated.
+- **Update**: download, verify, and install, like `update`.
+- **Add app…** / **Remove**: edit the watchlist. Add takes an F-Droid package ID only; use `add-direct` or `add-github` for the other source types.
+
+The GUI shares the watchlist, cache, and state files with the CLI. Network and `adb` work runs in a background thread so the window stays responsive.
+
+It needs tkinter. On an immutable distro where you can't install it, run the GUI from a distrobox that has `python3-tkinter` and `android-tools` (the container shares your home directory, display, and USB devices):
 
 ```
 distrobox create --name android-updater --image registry.fedoraproject.org/fedora-toolbox:44 \
   --additional-packages "python3-tkinter android-tools"
 distrobox enter android-updater -- .venv/bin/android-updater gui
 ```
+
+The container shares the host network, so if the host also runs an `adb` server of a different version and the phone isn't detected, run `adb kill-server` on the host and try again.
 
 ### Get notified about updates
 
