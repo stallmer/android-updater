@@ -258,11 +258,7 @@ class App(tk.Tk):
         def work():
             serial, cands, state = _plan()
             results = updater.apply(serial, cands)
-            for c in cands:
-                if results[c.release.package] is None:
-                    state.installed[c.release.package] = c.release.version_code
-                    state.tags[c.release.package] = c.release.version_name
-            state.save()
+            updater.record(state, cands, results)
             return results
 
         def done(results):
@@ -301,9 +297,7 @@ class App(tk.Tk):
         if not sel or not messagebox.askyesno("Remove", f"Remove {len(sel)} app(s) from the watchlist?", parent=self):
             return
         cfg = watchlist.load()
-        cfg.packages = [p for p in cfg.packages if p not in sel]
-        cfg.direct = [a for a in cfg.direct if a.package not in sel]
-        cfg.github = [a for a in cfg.github if a.package not in sel]
+        cfg.remove(sel)
         watchlist.save(cfg)
         self.say(f"removed {', '.join(sorted(sel))}")
         self.refresh()

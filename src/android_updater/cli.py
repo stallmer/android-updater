@@ -42,9 +42,7 @@ def cmd_add_github(args):
 
 def cmd_remove(args):
     cfg = watchlist.load()
-    cfg.packages = [p for p in cfg.packages if p not in args.packages]
-    cfg.direct = [a for a in cfg.direct if a.package not in args.packages]
-    cfg.github = [a for a in cfg.github if a.package not in args.packages]
+    cfg.remove(args.packages)
     watchlist.save(cfg)
 
 
@@ -100,11 +98,7 @@ def cmd_update(args):
         return
     failed = 0
     results = updater.apply(serial, cands)
-    for c in cands:
-        if results[c.release.package] is None:
-            state.installed[c.release.package] = c.release.version_code
-            state.tags[c.release.package] = c.release.version_name
-    state.save()
+    updater.record(state, cands, results)
     for pkg, err in results.items():
         print(f"  {'ok  ' if err is None else 'FAIL'} {pkg}" + (f": {err}" if err else ""))
         failed += err is not None

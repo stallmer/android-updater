@@ -16,6 +16,13 @@ class Config:
     def all_packages(self) -> list[str]:
         return self.packages + [a.package for a in self.direct] + [a.package for a in self.github]
 
+    def remove(self, packages) -> None:
+        """Drop the given package IDs from every source."""
+        gone = set(packages)
+        self.packages = [p for p in self.packages if p not in gone]
+        self.direct = [a for a in self.direct if a.package not in gone]
+        self.github = [a for a in self.github if a.package not in gone]
+
 
 def load() -> Config:
     if not WATCHLIST_FILE.exists():

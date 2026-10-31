@@ -47,3 +47,12 @@ def apply(serial: str, cands: list[Candidate]) -> dict[str, str | None]:
         except Exception as e:  # keep going so one failure doesn't block the rest
             results[c.release.package] = str(e)
     return results
+
+
+def record(state, cands: list[Candidate], results: dict[str, str | None]) -> None:
+    """Note the version of each successfully installed candidate in `state` and save it."""
+    for c in cands:
+        if results[c.release.package] is None:
+            state.installed[c.release.package] = c.release.version_code
+            state.tags[c.release.package] = c.release.version_name
+    state.save()
