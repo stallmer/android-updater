@@ -66,6 +66,20 @@ android-updater update             # download, verify, and install
 
 Apps on the watchlist that are missing from the phone are installed, and installed ones older than the latest release are upgraded. Apps are never downgraded or uninstalled. One failed install does not stop the others, and the exit code is non-zero if any failed.
 
+### GUI
+
+```
+android-updater gui
+```
+
+Opens a window with the watchlist, a "Check phone" (dry run) button, and an "Update" button. It needs tkinter (`python3-tkinter`). On an immutable distro, run it from a distrobox that has `python3-tkinter` and `android-tools`:
+
+```
+distrobox create --name android-updater --image registry.fedoraproject.org/fedora-toolbox:44 \
+  --additional-packages "python3-tkinter android-tools"
+distrobox enter android-updater -- .venv/bin/android-updater gui
+```
+
 ### Get notified about updates
 
 ```

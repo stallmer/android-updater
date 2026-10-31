@@ -163,6 +163,14 @@ def cmd_install_timer(args):
     (_launchd_agent if sys.platform == "darwin" else _systemd_timer)(args.schedule)
 
 
+def cmd_gui(_args):
+    try:
+        from . import gui
+    except ImportError as e:
+        sys.exit(f"error: {e}; the GUI needs tkinter (python3-tkinter)")
+    gui.main()
+
+
 def main():
     ap = argparse.ArgumentParser(prog="android-updater", description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -198,6 +206,7 @@ def main():
     t = sub.add_parser("install-timer", help="schedule `digest` (systemd user timer on Linux, launchd agent on macOS)")
     t.add_argument("--schedule", default="daily", help="systemd OnCalendar value, or on macOS a daily time like 09:00 (default: daily)")
     t.set_defaults(fn=cmd_install_timer)
+    sub.add_parser("gui", help="open the graphical interface (needs tkinter)").set_defaults(fn=cmd_gui)
 
     args = ap.parse_args()
     try:
