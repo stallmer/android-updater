@@ -6,7 +6,7 @@ import threading
 import tkinter as tk
 from tkinter import font as tkfont, messagebox, simpledialog, ttk
 
-from . import adb, repo, updater, watchlist
+from . import repo, updater, watchlist
 from .cli import _plan
 from .paths import GUI_FILE
 from .state import State
@@ -183,7 +183,7 @@ class App(tk.Tk):
         def target():
             try:
                 self.events.put((done, work(), None))
-            except (adb.AdbError, OSError, RuntimeError) as e:
+            except Exception as e:  # thread boundary: always report back, or the UI stays busy forever
                 self.events.put((done, None, e))
         threading.Thread(target=target, daemon=True).start()
 
@@ -199,7 +199,10 @@ class App(tk.Tk):
                 if err:
                     self.say(f"error: {err}")
                 elif done:
-                    done(result)
+                    try:
+                        done(result)
+                    except Exception as e:  # don't let a bad callback stop the polling loop
+                        self.say(f"error: {e}")
         except queue.Empty:
             pass
         self.after(100, self._poll)
