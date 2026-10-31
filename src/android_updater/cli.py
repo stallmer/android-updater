@@ -1,4 +1,6 @@
 import argparse
+import importlib.util
+import os
 import plistlib
 import re
 import sys
@@ -6,6 +8,7 @@ from pathlib import Path
 
 from . import adb, digest, repo, updater, watchlist
 from .direct import DirectApp, GithubApp
+from .paths import APPLICATIONS_DIR
 from .state import State
 
 
@@ -163,6 +166,46 @@ def cmd_install_timer(args):
     (_launchd_agent if sys.platform == "darwin" else _systemd_timer)(args.schedule)
 
 
+def _desktop_arg(arg: str) -> str:
+    return f'"{arg}"' if re.search(r"\s", arg) else arg
+
+
+def cmd_install(args):
+    """Put `android-updater` on PATH and add an application-menu entry for the GUI."""
+    exe = Path(sys.argv[0]).resolve()
+    bindir = Path.home() / ".local/bin"
+    link = bindir / "android-updater"
+    if link.is_symlink() and link.resolve() == exe:
+        print(f"{link} already points to {exe}")
+    elif link.exists() or link.is_symlink():
+        print(f"warning: {link} already exists; not replacing it", file=sys.stderr)
+    else:
+        bindir.mkdir(parents=True, exist_ok=True)
+        link.symlink_to(exe)
+        print(f"linked {link} -> {exe}")
+    if str(bindir) not in os.environ.get("PATH", "").split(os.pathsep):
+        print(f"warning: {bindir} is not on your PATH", file=sys.stderr)
+
+    if sys.platform == "darwin":
+        print("skipping the application-menu entry (Linux only)")
+        return
+    cmd = [str(exe), "gui"]
+    if args.distrobox:
+        cmd = ["distrobox", "enter", args.distrobox, "--", *cmd]
+    elif not importlib.util.find_spec("tkinter"):
+        print("warning: tkinter is not installed, so the GUI won't start; install python3-tkinter "
+              "or use --distrobox NAME (see README)", file=sys.stderr)
+    APPLICATIONS_DIR.mkdir(parents=True, exist_ok=True)
+    desktop = APPLICATIONS_DIR / "android-updater.desktop"
+    desktop.write_text(
+        "[Desktop Entry]\nType=Application\nName=Android Updater\n"
+        "Comment=Update apps on a USB-connected Android phone\n"
+        f"Exec={' '.join(_desktop_arg(a) for a in cmd)}\n"
+        "Icon=system-software-update\nTerminal=false\nCategories=Utility;\n"
+        "Keywords=android;adb;phone;f-droid;update;\n")
+    print(f"wrote {desktop}")
+
+
 def cmd_gui(_args):
     try:
         from . import gui
@@ -206,6 +249,9 @@ def main():
     t = sub.add_parser("install-timer", help="schedule `digest` (systemd user timer on Linux, launchd agent on macOS)")
     t.add_argument("--schedule", default="daily", help="systemd OnCalendar value, or on macOS a daily time like 09:00 (default: daily)")
     t.set_defaults(fn=cmd_install_timer)
+    i = sub.add_parser("install", help="link android-updater into ~/.local/bin and add a GUI launcher to the application menu")
+    i.add_argument("--distrobox", metavar="NAME", help="launch the GUI inside this distrobox (when the host Python lacks tkinter)")
+    i.set_defaults(fn=cmd_install)
     sub.add_parser("gui", help="open the graphical interface (needs tkinter)").set_defaults(fn=cmd_gui)
 
     args = ap.parse_args()

@@ -27,6 +27,14 @@ python -m venv .venv
 .venv/bin/pip install -e .
 ```
 
+Then run the installer once. It symlinks `android-updater` into `~/.local/bin` and, on Linux, adds an "Android Updater" entry to the application menu that launches the GUI:
+
+```
+.venv/bin/android-updater install
+```
+
+If the host Python has no tkinter, point the launcher at a distrobox that does (see [GUI](#gui)): `.venv/bin/android-updater install --distrobox android-updater`. The installer never overwrites an existing `~/.local/bin/android-updater` that points elsewhere, and it is safe to re-run. Re-run it if you move the clone or rebuild the venv.
+
 The examples below assume `android-updater` is on your `PATH` (or use `.venv/bin/android-updater`).
 
 ## Usage
@@ -87,7 +95,8 @@ It needs tkinter. On an immutable distro where you can't install it, run the GUI
 ```
 distrobox create --name android-updater --image registry.fedoraproject.org/fedora-toolbox:44 \
   --additional-packages "python3-tkinter android-tools"
-distrobox enter android-updater -- .venv/bin/android-updater gui
+.venv/bin/android-updater install --distrobox android-updater   # menu entry that starts the GUI in the container
+distrobox enter android-updater -- .venv/bin/android-updater gui  # or start it by hand
 ```
 
 The container shares the host network, so if the host also runs an `adb` server of a different version and the phone isn't detected, run `adb kill-server` on the host and try again.

@@ -16,7 +16,7 @@ python -m venv .venv && .venv/bin/pip install -e .   # install (hatchling build,
 .venv/bin/android-updater digest --print              # print instead of notify-send
 ```
 
-`gui` needs tkinter, which this host's Python lacks; it runs in a distrobox (see README). There is no test suite, linter, or formatter configured.
+`install` symlinks the script into `~/.local/bin` and writes a `.desktop` launcher (`--distrobox NAME` wraps the GUI command in `distrobox enter`). `gui` needs tkinter, which this host's Python lacks; it runs in a distrobox (see README). There is no test suite, linter, or formatter configured.
 
 ## Architecture
 
