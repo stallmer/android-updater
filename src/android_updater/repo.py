@@ -55,6 +55,14 @@ def load_index() -> dict:
     return json.loads(INDEX_FILE.read_text())
 
 
+def load_cached_index() -> dict | None:
+    """Return the on-disk index without touching the network (None if never downloaded)."""
+    try:
+        return json.loads(INDEX_FILE.read_text())
+    except (OSError, ValueError):
+        return None
+
+
 def best_release(index: dict, package: str, sdk: int, abis: list[str]) -> Release | None:
     """Highest stable version of `package` that the device can run."""
     pkg = index["packages"].get(package)

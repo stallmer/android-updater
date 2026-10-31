@@ -204,8 +204,12 @@ class App(tk.Tk):
         self.log.see("end")
         self.log.configure(state="disabled")
 
-    def run(self, work, done=None):
-        """Run `work` off the UI thread; `done(result)` runs back on it."""
+    def run(self, work, done=None, partial=None):
+        """Run `work` off the UI thread; `done(result)` runs back on it.
+
+        `work` may take one argument, an `emit` function that delivers interim results to `partial`
+        on the UI thread before `work` returns.
+        """
         if self.busy:
             return
         self.busy = True
@@ -216,15 +220,22 @@ class App(tk.Tk):
 
         def target():
             try:
-                self.events.put((done, work(), None))
+                emit = lambda r: self.events.put((partial, r, None, False))
+                self.events.put((done, work(emit) if partial else work(), None, True))
             except Exception as e:  # thread boundary: always report back, or the UI stays busy forever
-                self.events.put((done, None, e))
+                self.events.put((done, None, e, True))
         threading.Thread(target=target, daemon=True).start()
 
     def _poll(self):
         try:
             while True:
-                done, result, err = self.events.get_nowait()
+                done, result, err, final = self.events.get_nowait()
+                if not final:  # interim result: show it, stay busy
+                    try:
+                        done(result)
+                    except Exception as e:
+                        self.say(f"error: {e}")
+                    continue
                 self.busy = False
                 self.progress.stop()
                 self.progress.pack_forget()
@@ -242,23 +253,37 @@ class App(tk.Tk):
         self.after(100, self._poll)
 
     def refresh(self):
-        def work():
-            cfg = watchlist.load()
-            found = {r.package: r for r in updater.latest_releases(repo.load_index(), cfg, 99, ABIS)}
-            return cfg, found, State.load()
+        def releases(index, cfg):
+            return {r.package: r for r in updater.latest_releases(index, cfg, 99, ABIS)}
 
-        def done(res):
+        def work(emit):
+            cfg, state = watchlist.load(), State.load()
+            cached = repo.load_cached_index()
+            # Show what we already know right away (F-Droid versions from the cached index, phone
+            # versions from state) while the network fetch runs.
+            if cached:
+                emit((cfg, releases(cached, watchlist.Config(cfg.packages)), state))
+            else:
+                emit((cfg, {}, state))
+            return cfg, releases(repo.load_index(), cfg), state
+
+        def render(res, final):
             cfg, found, state = res
             self.tree.delete(*self.tree.get_children())
             for n, p in enumerate(cfg.all_packages()):
                 rel, code = found.get(p), state.installed.get(p)
-                status, tag = _status(rel, code, p in self.pending, self.checked)
+                if rel or final:
+                    status, tag = _status(rel, code, p in self.pending, self.checked)
+                else:
+                    status, tag = "checking…", ""
                 self.tree.insert("", "end", iid=p, tags=(tag, "odd" if n % 2 else ""), values=(
                     p, _source(cfg, p), rel.version_name if rel else "", code if code is not None else "", status))
             self._fit_columns()
-            self.say(f"refreshed {len(cfg.all_packages())} app(s)")
+            if final:
+                self.say(f"refreshed {len(cfg.all_packages())} app(s)")
+
         self.say("fetching latest versions…")
-        self.run(work, done)
+        self.run(work, lambda res: render(res, True), partial=lambda res: render(res, False))
 
     def check_phone(self):
         def done(res):
