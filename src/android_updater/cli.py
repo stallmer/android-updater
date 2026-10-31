@@ -3,6 +3,7 @@ import importlib.util
 import os
 import plistlib
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -164,6 +165,29 @@ def _desktop_arg(arg: str) -> str:
     return f'"{arg}"' if re.search(r"\s", arg) else arg
 
 
+def _macos_app(exe: Path) -> None:
+    """Write ~/Applications/Android Updater.app, a stub bundle that launches the GUI."""
+    if not importlib.util.find_spec("tkinter"):
+        print("warning: tkinter is not installed, so the GUI won't start; "
+              "run `brew install python-tk@3.X` for your Python version", file=sys.stderr)
+    app = Path.home() / "Applications/Android Updater.app"
+    macos = app / "Contents/MacOS"
+    macos.mkdir(parents=True, exist_ok=True)
+    (app / "Contents/Info.plist").write_bytes(plistlib.dumps({
+        "CFBundleName": "Android Updater",
+        "CFBundleDisplayName": "Android Updater",
+        "CFBundleIdentifier": "com.android-updater.gui",
+        "CFBundleExecutable": "android-updater",
+        "CFBundlePackageType": "APPL",
+        "CFBundleVersion": "1",
+        "LSApplicationCategoryType": "public.app-category.utilities",
+    }))
+    launcher = macos / "android-updater"
+    launcher.write_text(f'#!/bin/sh\nexec {shlex.quote(str(exe))} gui\n')
+    launcher.chmod(0o755)
+    print(f"wrote {app}")
+
+
 def cmd_install(args):
     """Put `android-updater` on PATH and add an application-menu entry for the GUI."""
     exe = Path(sys.argv[0]).resolve()
@@ -181,7 +205,7 @@ def cmd_install(args):
         print(f"warning: {bindir} is not on your PATH", file=sys.stderr)
 
     if sys.platform == "darwin":
-        print("skipping the application-menu entry (Linux only)")
+        _macos_app(exe)
         return
     cmd = [str(exe), "gui"]
     if args.distrobox:

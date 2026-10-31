@@ -27,7 +27,7 @@ python -m venv .venv
 .venv/bin/pip install -e .
 ```
 
-Then run the installer once. It symlinks `android-updater` into `~/.local/bin` and, on Linux, adds an "Android Updater" entry to the application menu that launches the GUI:
+Then run the installer once. It symlinks `android-updater` into `~/.local/bin` and adds an "Android Updater" entry that launches the GUI (a `.desktop` launcher on Linux, `~/Applications/Android Updater.app` on macOS, which Spotlight and Launchpad pick up):
 
 ```
 .venv/bin/android-updater install
